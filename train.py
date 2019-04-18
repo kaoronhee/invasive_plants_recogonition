@@ -45,6 +45,7 @@ test_loss = []
 epoch = 1
 print_freq = 36
 eval_freq = 1
+best_test_acc = 0
 
 
 # 定义图片变换列表
@@ -67,7 +68,7 @@ eval_transforms = transforms.Compose([transforms.ToPILImage(),
 
 train_data = datasets.ImageFolder(
     'E:/DocRearch/imgs/train', transform=mytransforms)
-train_loader = DataLoader(train_data, batch_size=16,
+train_loader = DataLoader(train_data, batch_size=12,
                           shuffle=True)
 eval_data = datasets.ImageFolder('E:/DocRearch/imgs/eval', transform=transforms.Compose(
     [transforms.RandomResizedCrop(224, scale=(0.8, 1.2)), transforms.ToTensor()]))
