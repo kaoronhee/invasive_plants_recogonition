@@ -29,8 +29,11 @@ ifcontinue_train = False
 model_path = 'model/' + exp_version + '_params.pkl'
 
 # 定义一般常量
+train_acc = []
 total_steps = 0  # 总训练次数
 train_loss = []
+test_accs=[]
+test_loss=[]
 epoch = 1
 print_freq = 36
 
@@ -38,7 +41,7 @@ print_freq = 36
 # 定义图片变换列表
 mytransforms = transforms.Compose(
     [
-        transforms.RandomResizedCrop(224),
+        transforms.RandomResizedCrop(224,(0.8,1.2)),
         transforms.RandomRotation(rotation_degree),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -48,9 +51,17 @@ mytransforms = transforms.Compose(
 )
 
 
+eval_transforms = transforms.Compose([transforms.ToPILImage(),
+                                     transforms.RandomResizedCrop(224, scale=(0.8, 1.2)),
+                                     transforms.ToTensor(),
+                                     normalize])
+
 train_data = datasets.ImageFolder('imgs/train', transform=mytransforms)
 train_loader = DataLoader(train_data, batch_size=16,
-                          shuffle=True, num_workers=0)
+                          shuffle=True)
+eval_data = datasets.ImageFolder('imgs/eval', transform=transforms.Compose(
+    [transforms.RandomResizedCrop(224, scale=(0.8, 1.2)),transforms.ToTensor()]))
+eval_loader=DataLoader(eval_data,batch_size=4,shuffle=True)
 
 classes = train_data.classes
 
@@ -116,3 +127,7 @@ for epoch in range(10):  # 全集训练次数
             ))
             start = time.time()
             batch_loss = 0
+
+    train_acc = 100 * train_correct / train_total
+    train_accs.append(train_acc)
+    train_loss.append(tr_loss)
