@@ -33,7 +33,7 @@ hidden_dim = 800
 ifcontinue_train = False
 
 # 定义模型训练保存位置
-model_path = 'model/' + exp_version + '_params.pkl'
+model_path = 'models/' + exp_version + '_params.pkl'
 
 # 定义一般常量
 total_steps = 0  # 总训练次数
@@ -53,7 +53,6 @@ mytransforms = transforms.Compose(
     [
         transforms.RandomResizedCrop(224, (0.8, 1.2)),
         transforms.RandomRotation(rotation_degree),
-        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[
                              0.229, 0.224, 0.225])
@@ -61,18 +60,21 @@ mytransforms = transforms.Compose(
 )
 
 
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])
 eval_transforms = transforms.Compose([transforms.ToPILImage(),
                                       transforms.RandomResizedCrop(
-                                          224, scale=(0.8, 1.2)),
-                                      transforms.ToTensor()])
+    224, scale=(0.8, 1.2)),
+    transforms.ToTensor(),
+    normalize])
 
 train_data = datasets.ImageFolder(
-    'E:/DocRearch/imgs/train', transform=mytransforms)
+    'E:/images/train', transform=mytransforms)
 train_loader = DataLoader(train_data, batch_size=12,
                           shuffle=True)
-eval_data = datasets.ImageFolder('E:/DocRearch/imgs/eval', transform=transforms.Compose(
-    [transforms.RandomResizedCrop(224, scale=(0.8, 1.2)), transforms.ToTensor()]))
-eval_loader = DataLoader(eval_data, batch_size=4, shuffle=True)
+eval_data = datasets.ImageFolder('E:/images/eval', transform=transforms.Compose(
+    [transforms.ToTensor()]))
+eval_loader = DataLoader(eval_data, batch_size=1, shuffle=True)
 
 
 print('Num of images in the dataset: ' +
@@ -105,9 +107,9 @@ if ifcontinue_train:
 
 # 训练和测试
 
-for epoch in range(5):  # 全集训练次数
+for epoch in range(10):  # 全集训练次数
     writer.add_text('Epoch: ', str(epoch + 1))
-    if epoch > 3:
+    if epoch > 2:
         lr = 0.001
     iteration = 0  # 分批训练次数
     start = time.time()
@@ -115,6 +117,7 @@ for epoch in range(5):  # 全集训练次数
     tr_loss = 0
     train_total = 0
     train_correct = 0
+
     model.train()
 
     for batch, labels in train_loader:
@@ -170,8 +173,7 @@ for epoch in range(5):  # 全集训练次数
             predicts = []
             tmp = 0
             for i in range(ncorps):
-                images = eval_transforms(torch.Tensor.squeeze(inputs))
-                images = torch.Tensor.unsqueeze(images, dim=0)
+                images = eval_transforms(torch.squeeze(inputs)).unsqueeze(0)
                 images = Variable(images)
                 if torch.cuda.is_available():
                     images = images.cuda()
@@ -181,14 +183,14 @@ for epoch in range(5):  # 全集训练次数
 
                 _loss = loss_func(outputs, targets)
                 tmp += _loss.data.item()
-                _, predicted = torch.argmax(outputs.data)
+                _, predicted = torch.max(outputs.data, 1)
                 predicts.append(predicted)
 
-            predicts = torch.Tensor.stack(predicts, dim=1)
+            predicts = torch.stack(predicts, dim=1)
             predicted = most_common(predicts)
             test_total += labels.size(0)
-            y_true = np.append(y_true, labels.cpu().numpy())
-            y_pred = np.append(y_pred, predicted.cpu().numpy())
+            y_true = np.append(y_true, labels.cpu().numpy().astype(int))
+            y_pred = np.append(y_pred, predicted.cpu().numpy().astype(int))
             test_correct += (predicted == labels).sum()
             te_loss += tmp / ncorps    # take average loss of n votings
 
@@ -203,14 +205,14 @@ for epoch in range(5):  # 全集训练次数
         if test_acc > best_test_acc:
             best_test_acc = test_acc
             print('Saving best model params to {}'.format(model_path))
-            torch.save(model.state_dict(), model_path)
+            #torch.save(model.state_dict(), model_path)
             # plot roc
-            plot_roc(y_true, y_pred, epoch+1, exp_version)
+            #plot_roc(y_true, y_pred, epoch+1, exp_version, len(classes))
             # try saliency map plot
             for x, y in eval_loader:
-                x = eval_transforms(torch.Tensor.squeeze(x))
-                x = torch.Tensor.unsqueeze(x, dim=0)
-                show_saliency_maps(model, x, y, exp_version)
+                x = eval_transforms(torch.squeeze(x))
+                x = torch.unsqueeze(x, dim=0)
+                show_saliency_maps(model, x, y, exp_version, len(classes))
                 break
 
 writer.close()

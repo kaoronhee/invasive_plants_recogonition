@@ -22,21 +22,21 @@ def most_common(x, dim=1):
     """ Find most common element along dim, x should be 2D tensor """
     results = []
     for i in range(x.size()[0]):
-        ind = torch.cuda.LongStorage([i])
+        ind = torch.cuda.LongTensor([i])
         candidates = torch.Tensor.squeeze(x.index_select(0, ind))
         candidates = candidates.cpu().numpy()
         winner = np.bincount(candidates).argmax()
         results.append(int(winner))
-    return torch.cuda.LongStorage(results)
+    return torch.cuda.LongTensor(results)
 
 
-def plot_roc(y_true, y_pred, epoch, exp_name):
+def plot_roc(y_true, y_pred, epoch, exp_name, classnum=4):
     # print(y_true.shape, y_pred.shape)
     idx = y_pred.astype(int)
-    y_prob = np.zeros((len(y_pred), 13))
+    y_prob = np.zeros((len(y_pred), classnum))
     y_prob[np.arange(len(y_pred)), idx] = 1.0
 
-    skplt.metrics.plot_roc_curve(y_true, y_prob)
+    skplt.metrics.plot_roc(y_true, y_prob)
 
     target_dir = os.path.join('models', exp_name)
     if not os.path.exists(target_dir):
@@ -48,7 +48,7 @@ def plot_roc(y_true, y_pred, epoch, exp_name):
     pass
 
 
-def compute_saliency_maps(X, y, model):
+def compute_saliency_maps(X, y, model, classnum):
     """
     使用模型图像(image)X和标记(label)y计算正确类的saliency map.
 
@@ -73,10 +73,11 @@ def compute_saliency_maps(X, y, model):
     saliency = None
     scores = model(X_var)
 
-    # 得到正确类的分数，scores为[13]的Tensor
+    # 得到正确类的分数，scores为[classnum]的Tensor
     scores = scores.gather(1, y_var.view(-1, 1)).squeeze()
 
-    scores.backward(torch.FloatStorage([1.0] * 13).cuda())  # 参数为对应长度的梯度初始化
+    scores.backward(torch.FloatStorage(
+        [1.0] * classnum).cuda())  # 参数为对应长度的梯度初始化
 #     scores.backward() 必须有参数，因为此时的scores为非标量，为5个元素的向量
 
     saliency = X_var.grad.data
@@ -89,14 +90,14 @@ def compute_saliency_maps(X, y, model):
     return saliency
 
 
-def show_saliency_maps(model, X, y, exp_name):
+def show_saliency_maps(model, X, y, exp_name, classnum):
     # Convert X and y from numpy arrays to Torch Tensors
     # X_tensor = torch.cat([preprocess(Image.fromarray(x.cpu().numpy())) for x in X], dim=0)
     # X_tensor = X
     # y_tensor = y
     print(X.size(), y.size())
     # Compute saliency maps for images in X
-    saliency = compute_saliency_maps(X, y, model)
+    saliency = compute_saliency_maps(X, y, model, classnum)
 
     # Convert the saliency map from Torch Tensor to numpy array and show images
     # and saliency maps together.
