@@ -31,9 +31,10 @@ model_path = 'model/' + exp_version + '_params.pkl'
 # 定义一般常量
 total_steps = 0  # 总训练次数
 train_acc = []
+train_accs = []
+test_accs = []
 train_loss = []
-test_accs=[]
-test_loss=[]
+test_loss = []
 epoch = 1
 print_freq = 36
 
@@ -41,7 +42,7 @@ print_freq = 36
 # 定义图片变换列表
 mytransforms = transforms.Compose(
     [
-        transforms.RandomResizedCrop(224,(0.8,1.2)),
+        transforms.RandomResizedCrop(224, (0.8, 1.2)),
         transforms.RandomRotation(rotation_degree),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -52,16 +53,17 @@ mytransforms = transforms.Compose(
 
 
 eval_transforms = transforms.Compose([transforms.ToPILImage(),
-                                     transforms.RandomResizedCrop(224, scale=(0.8, 1.2)),
-                                     transforms.ToTensor(),
-                                     normalize])
+                                      transforms.RandomResizedCrop(
+                                          224, scale=(0.8, 1.2)),
+                                      transforms.ToTensor()])
 
-train_data = datasets.ImageFolder('imgs/train', transform=mytransforms)
+train_data = datasets.ImageFolder(
+    'E:/DocRearch/imgs/train', transform=mytransforms)
 train_loader = DataLoader(train_data, batch_size=16,
                           shuffle=True)
-eval_data = datasets.ImageFolder('imgs/eval', transform=transforms.Compose(
-    [transforms.RandomResizedCrop(224, scale=(0.8, 1.2)),transforms.ToTensor()]))
-eval_loader=DataLoader(eval_data,batch_size=4,shuffle=True)
+eval_data = datasets.ImageFolder('E:/DocRearch/imgs/eval', transform=transforms.Compose(
+    [transforms.RandomResizedCrop(224, scale=(0.8, 1.2)), transforms.ToTensor()]))
+eval_loader = DataLoader(eval_data, batch_size=4, shuffle=True)
 
 classes = train_data.classes
 
@@ -83,7 +85,7 @@ if ifcontinue_train:
 
 # 训练和测试
 
-for epoch in range(10):  # 全集训练次数
+for epoch in range(5):  # 全集训练次数
     if epoch > 3:
         lr = 0.001
     iteration = 0  # 分批训练次数
