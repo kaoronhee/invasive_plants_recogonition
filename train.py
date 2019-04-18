@@ -29,8 +29,8 @@ ifcontinue_train = False
 model_path = 'model/' + exp_version + '_params.pkl'
 
 # 定义一般常量
-train_acc = []
 total_steps = 0  # 总训练次数
+train_acc = []
 train_loss = []
 test_accs=[]
 test_loss=[]
