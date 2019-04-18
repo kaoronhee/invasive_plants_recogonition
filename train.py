@@ -7,11 +7,18 @@ import torch.utils.data
 from torch.utils.data import DataLoader, distributed
 import numpy as np
 import time
-from networks import*
+from networks import *
+from tensorboardX import SummaryWriter
+from utils import *
 
 
 # 定义本次训练版本号
 exp_version = 'ias20190417'
+
+
+logdir = './logs/' + exp_version
+writer = SummaryWriter(log_dir=logdir)
+print('training log is writing to: ', logdir)
 
 # 定义随机旋转角度
 rotation_degree = np.random.randint(15, 45)
@@ -37,6 +44,7 @@ train_loss = []
 test_loss = []
 epoch = 1
 print_freq = 36
+eval_freq = 1
 
 
 # 定义图片变换列表
@@ -65,7 +73,18 @@ eval_data = datasets.ImageFolder('E:/DocRearch/imgs/eval', transform=transforms.
     [transforms.RandomResizedCrop(224, scale=(0.8, 1.2)), transforms.ToTensor()]))
 eval_loader = DataLoader(eval_data, batch_size=4, shuffle=True)
 
+
+print('Num of images in the dataset: ' +
+      'train {}, eval {}'.format(len(train_loader.dataset),
+                                 len(eval_loader.dataset)))
+
+
 classes = train_data.classes
+
+print('Label info: ')
+for key, val in train_data.class_to_idx.items():
+    print(key, val)
+
 
 model = densenet201(pretrained=True)
 
@@ -86,6 +105,7 @@ if ifcontinue_train:
 # 训练和测试
 
 for epoch in range(5):  # 全集训练次数
+    writer.add_text('Epoch: ', str(epoch + 1))
     if epoch > 3:
         lr = 0.001
     iteration = 0  # 分批训练次数
@@ -117,7 +137,7 @@ for epoch in range(5):  # 全集训练次数
         optimizer.step()
 
         train_total += labels.size(0)
-        #_, predicted = torch.Tensor().max(outputs.data, 1)
+        # _, predicted = torch.Tensor().max(outputs.data, 1)
         predicted = torch.argmax(outputs.data)
         predicted = predicted.cpu().numpy().astype(int)
         train_correct += (predicted == labels.numpy().astype(int)).sum()
@@ -133,3 +153,69 @@ for epoch in range(5):  # 全集训练次数
     train_acc = 100 * train_correct / train_total
     train_accs.append(train_acc)
     train_loss.append(tr_loss)
+
+    # Test the Model
+    ncorps = 5
+    if (epoch + 1) % eval_freq == 0:
+        print('evaluating...')
+        model.eval()
+        test_correct = 0
+        test_total = 0
+        te_loss = 0
+        y_true = np.array([])
+        y_pred = np.array([])
+
+        for inputs, labels in eval_loader:
+            predicts = []
+            tmp = 0
+            for i in range(ncorps):
+                images = eval_transforms(torch.Tensor.squeeze(inputs))
+                images = torch.Tensor.unsqueeze(images, dim=0)
+                images = Variable(images)
+                if torch.cuda.is_available():
+                    images = images.cuda()
+                    labels = labels.cuda()
+                outputs = model(images)
+                targets = Variable(labels)
+
+                _loss = loss_func(outputs, targets)
+                tmp += _loss.data.item()
+                _, predicted = torch.argmax(outputs.data)
+                predicts.append(predicted)
+
+            predicts = torch.Tensor.stack(predicts, dim=1)
+            predicted = most_common(predicts)
+            test_total += labels.size(0)
+            y_true = np.append(y_true, labels.cpu().numpy())
+            y_pred = np.append(y_pred, predicted.cpu().numpy())
+            test_correct += (predicted == labels).sum()
+            te_loss += tmp / ncorps    # take average loss of n votings
+
+        print('Correct pred: ', test_correct)
+        test_acc = 100 * test_correct / test_total
+        test_accs.append(test_acc)
+        test_loss.append(te_loss)
+        print('Test Accuracy of the model on test images: %d%%' % test_acc)
+        writer.add_scalar('eval_acc', test_acc, total_steps)
+
+        # Save the Trained Model
+        if test_acc > best_test_acc:
+            best_test_acc = test_acc
+            print('Saving best model params to {}'.format(model_path))
+            torch.save(model.state_dict(), model_path)
+            # plot roc
+            plot_roc(y_true, y_pred, epoch+1, exp_version)
+            # try saliency map plot
+            for x, y in eval_loader:
+                x = eval_transforms(torch.Tensor.squeeze(x))
+                x = torch.Tensor.unsqueeze(x, dim=0)
+                show_saliency_maps(model, x, y, exp_version)
+                break
+
+writer.close()
+print('Training finished.')
+print('train_accuracies: ', train_accs)
+print('test_accuracies: ', test_accs)
+history = {'acc': train_accs, 'loss': train_loss,
+           'loss': train_loss, 'val_acc': test_accs, 'val_loss': test_loss}
+plot_training_hist(history, exp_name=exp_version)
